@@ -2,19 +2,164 @@
 <html lang="fr">
 <head>
   <meta charset="UTF-8" />
-  <title>OAuth Callback</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>OAuth Callback - Zurich x Delfox</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      max-width: 800px;
+      margin: 50px auto;
+      padding: 20px;
+      background-color: #f5f5f5;
+    }
+    .container {
+      background: white;
+      padding: 30px;
+      border-radius: 8px;
+      box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+      text-align: center;
+    }
+    .code-box {
+      background: #f8f9fa;
+      border: 1px solid #dee2e6;
+      padding: 15px;
+      margin: 20px 0;
+      border-radius: 4px;
+      font-family: monospace;
+      word-break: break-all;
+      font-size: 14px;
+    }
+    .success { color: #28a745; }
+    .error { color: #dc3545; }
+    button {
+      background: #0066cc;
+      color: white;
+      border: none;
+      padding: 10px 20px;
+      border-radius: 4px;
+      cursor: pointer;
+      margin: 5px;
+      font-size: 14px;
+    }
+    button:hover { background: #0052a3; }
+    .instructions {
+      background: #e7f3ff;
+      padding: 15px;
+      border-left: 4px solid #0066cc;
+      margin: 20px 0;
+      text-align: left;
+    }
+  </style>
 </head>
 <body>
-  <h1>Redirection OAuth...</h1>
+  <div class="container">
+    <h1>🔑 OAuth Callback</h1>
+    <div id="status">Traitement de l'autorisation...</div>
+    <div id="content"></div>
+  </div>
+
   <script>
-    const params = new URLSearchParams(window.location.search);
-    const code = params.get('code');
-    if (code) {
-      document.body.innerHTML = `<p>Code OAuth reçu : ${code}</p>`;
-      // space for adding code if necessary
-    } else {
-      document.body.innerHTML = '<p>Aucun code OAuth trouvé dans l’URL.</p>';
+    function getUrlParams() {
+      const params = new URLSearchParams(window.location.search);
+      return {
+        code: params.get('code'),
+        state: params.get('state'),
+        error: params.get('error'),
+        error_description: params.get('error_description')
+      };
     }
+
+    function displaySuccess(code) {
+      document.getElementById('status').innerHTML = '<span class="success">✅ Autorisation réussie !</span>';
+      document.getElementById('content').innerHTML = `
+        <div class="code-box" id="auth-code">${code}</div>
+        <button onclick="copyCode()">📋 Copier le code</button>
+        <div class="instructions">
+          <h3>Instructions :</h3>
+          <ol>
+            <li>Le code a été automatiquement détecté</li>
+            <li>Retournez à votre application Streamlit</li>
+            <li>Si nécessaire, copiez ce code et collez-le dans l'application</li>
+          </ol>
+        </div>
+      `;
+      
+      // Stocker le code pour récupération automatique par l'application Python
+      localStorage.setItem('authCode', code);
+      sessionStorage.setItem('authCode', code);
+      
+      // Ajouter une balise meta pour faciliter l'extraction automatique
+      const metaCode = document.createElement('meta');
+      metaCode.name = 'auth-code';
+      metaCode.content = code;
+      document.head.appendChild(metaCode);
+      
+      // Afficher le code dans le titre de la page aussi (pour extraction)
+      document.title = `OAuth Success - Code: ${code.substring(0, 20)}...`;
+    }
+
+    function displayError(error, description) {
+      document.getElementById('status').innerHTML = '<span class="error">❌ Erreur d\'autorisation</span>';
+      document.getElementById('content').innerHTML = `
+        <div class="error">
+          <h3>Erreur : ${error}</h3>
+          <p>${description || 'Erreur inconnue'}</p>
+          <p>Veuillez fermer cette fenêtre et réessayer l'authentification.</p>
+        </div>
+      `;
+    }
+
+    function copyCode() {
+      const code = document.getElementById('auth-code').textContent;
+      navigator.clipboard.writeText(code).then(() => {
+        alert('✅ Code copié dans le presse-papiers !');
+      }).catch(() => {
+        // Fallback pour les navigateurs plus anciens
+        const textArea = document.createElement('textarea');
+        textArea.value = code;
+        document.body.appendChild(textArea);
+        textArea.select();
+        document.execCommand('copy');
+        document.body.removeChild(textArea);
+        alert('✅ Code copié dans le presse-papiers !');
+      });
+    }
+
+    // Fonction globale pour récupération automatique par l'application Python
+    window.getAuthCode = function() {
+      return localStorage.getItem('authCode') || sessionStorage.getItem('authCode');
+    };
+
+    // Traitement principal au chargement de la page
+    window.onload = function() {
+      const params = getUrlParams();
+      
+      if (params.error) {
+        displayError(params.error, params.error_description);
+      } else if (params.code) {
+        displaySuccess(params.code);
+      } else {
+        document.getElementById('status').innerHTML = '<span class="error">❌ Aucun code trouvé</span>';
+        document.getElementById('content').innerHTML = `
+          <div class="error">
+            <p>Aucun code OAuth trouvé dans l'URL.</p>
+            <p>Veuillez fermer cette fenêtre et réessayer l'authentification.</p>
+          </div>
+        `;
+      }
+    };
+
+    // Envoyer un message au parent si c'est dans un iframe/popup
+    window.addEventListener('load', function() {
+      const params = getUrlParams();
+      if (params.code && window.opener) {
+        window.opener.postMessage({
+          type: 'OAUTH_SUCCESS',
+          code: params.code,
+          state: params.state
+        }, '*');
+      }
+    });
   </script>
 </body>
 </html>
