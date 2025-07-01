@@ -1,0 +1,20 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <title>OAuth Callback</title>
+</head>
+<body>
+  <h1>Redirection OAuth...</h1>
+  <script>
+    const params = new URLSearchParams(window.location.search);
+    const code = params.get('code');
+    if (code) {
+      document.body.innerHTML = `<p>Code OAuth reçu : ${code}</p>`;
+      // space for adding code if necessary
+    } else {
+      document.body.innerHTML = '<p>Aucun code OAuth trouvé dans l’URL.</p>';
+    }
+  </script>
+</body>
+</html>
